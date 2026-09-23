@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "/home/toomuchcomputedan/miniforge3/envs/ml-env/bin/python",
+  "python.analysis.extraPaths": [
+    "/home/toomuchcomputedan/projects/forked-projects/Darkroom-DataForge"
+  ]
+}

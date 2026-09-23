@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    background-color: #09090b;
+    color: #f4f4f5;
+    font-family: 'Open Sans', 'Inter', sans-serif;
+    overflow: hidden;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Custom OpenAI-style scrollbars */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
+  }
+}
