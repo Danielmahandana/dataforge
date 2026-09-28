@@ -1,12 +1,27 @@
 import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Sparkles, FolderGit2, CheckCircle2, AlertCircle, RefreshCw, Trash2, X } from 'lucide-react';
 import { apiClient } from '../../services/api';
 import { useAppStore } from '../../store/useAppStore';
 
+const TOP_NAV_ITEMS = [
+  { name: 'Overview', path: '/' },
+  { name: 'Workspaces', path: '/projects' },
+  { name: 'Documents', path: '/documents' },
+  { name: 'AI Studio', path: '/pipeline' },
+  { name: 'Datasets & Review', path: '/datasets' },
+  { name: 'Exports', path: '/exports' },
+];
+
 export const Header: React.FC = () => {
   const queryClient = useQueryClient();
-  const { selectedProjectId, setSelectedProjectId } = useAppStore();
+  const {
+    selectedProjectId,
+    setSelectedProjectId,
+    isSidebarOpen,
+    toggleSidebar,
+    setCreateWorkspaceModalOpen,
+  } = useAppStore();
 
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -49,130 +64,149 @@ export const Header: React.FC = () => {
 
   return (
     <>
-      <header className="h-14 bg-[#09090b] border-b border-zinc-800/80 flex items-center justify-between px-6 z-20">
-        {/* Brand & Platform Identifier */}
+      <header className="h-13 bg-[#171717] border-b border-white/10 flex items-center justify-between px-4 z-20 font-sans text-xs">
+        {/* Left Brand & Sidebar Toggle */}
         <div className="flex items-center space-x-3">
-          <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-700 flex items-center justify-center font-bold text-amber-400 text-xs shadow-sm">
-            DF
-          </div>
+          <button
+            onClick={toggleSidebar}
+            className="p-1.5 text-zinc-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+            title={isSidebarOpen ? 'Collapse Sidebar' : 'Expand Sidebar'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
+          {/* OpenAI Inspired Wordmark */}
           <div className="flex items-center space-x-2">
-            <span className="font-semibold text-sm text-zinc-100 tracking-tight font-sans">
-              Darkroom DataForge
+            <span className="w-2 h-2 rounded-full bg-[#10a37f]"></span>
+            <span className="font-semibold text-white tracking-tight text-sm">
+              DataForge
             </span>
-            <span className="px-2 py-0.5 bg-zinc-900 text-zinc-400 text-[10px] font-mono rounded border border-zinc-800">
-              v2.0 Universal
+            <span className="text-[11px] text-zinc-400 font-mono pl-1">
+              v2.0
             </span>
           </div>
 
           {resetSuccessMsg && (
-            <div className="ml-4 px-3 py-1 bg-emerald-950/80 border border-emerald-800 rounded-lg text-xs font-sans text-emerald-400 flex items-center space-x-1.5 animate-pulse">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{resetSuccessMsg}</span>
+            <div className="ml-3 px-2.5 py-1 bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 rounded text-[11px]">
+              {resetSuccessMsg}
             </div>
           )}
         </div>
 
-        {/* Workspace Selector & LLM / Backend Telemetry & Reset Button */}
-        <div className="flex items-center space-x-3">
-          {/* Project Selector */}
-          <div className="flex items-center space-x-2 bg-zinc-900/80 border border-zinc-800 px-3 py-1.5 rounded-lg text-xs">
-            <FolderGit2 className="w-3.5 h-3.5 text-amber-400" />
+        {/* Center Top Workflow Navigation Bar */}
+        <nav className="hidden lg:flex items-center space-x-1">
+          {TOP_NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/'}
+              className={({ isActive }) =>
+                `px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'bg-white/10 text-white font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                }`
+              }
+            >
+              {item.name}
+            </NavLink>
+          ))}
+        </nav>
+
+        {/* Right Workspace Switcher & Actions */}
+        <div className="flex items-center space-x-2.5">
+          {/* Workspace Dropdown */}
+          <div className="flex items-center bg-[#212121] border border-white/10 rounded-md px-2.5 py-1 text-xs">
+            <span className="text-zinc-400 mr-2 font-medium hidden sm:inline">Workspace:</span>
             <select
               value={selectedProjectId || ''}
-              onChange={(e) => setSelectedProjectId(e.target.value || null)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer pr-2 font-sans"
+              onChange={(e) => {
+                if (e.target.value === '__NEW__') {
+                  setCreateWorkspaceModalOpen(true);
+                } else {
+                  setSelectedProjectId(e.target.value || null);
+                }
+              }}
+              className="bg-transparent text-white focus:outline-none cursor-pointer pr-1 text-xs font-medium"
             >
-              <option value="" className="bg-[#121215] text-zinc-400">
+              <option value="" className="bg-[#212121] text-zinc-300">
                 All Workspaces (Global)
               </option>
               {projects.map((p) => (
-                <option key={p.id} value={p.id} className="bg-[#121215] text-zinc-200">
+                <option key={p.id} value={p.id} className="bg-[#212121] text-white">
                   {p.name}
                 </option>
               ))}
+              <option value="__NEW__" className="bg-[#212121] text-[#10a37f] font-semibold">
+                + Create New Workspace...
+              </option>
             </select>
           </div>
 
-          {/* Groq AI Telemetry Badge */}
+          {/* Quick Create Workspace Button */}
+          <button
+            onClick={() => setCreateWorkspaceModalOpen(true)}
+            className="hidden sm:inline-flex items-center px-2.5 py-1 bg-[#10a37f] hover:bg-[#0e8e6e] text-white text-xs font-medium rounded-md transition-colors"
+          >
+            + New Workspace
+          </button>
+
+          {/* LLM Status Telemetry */}
           {llmStatus && (
-            <div className="hidden md:flex items-center space-x-1.5 px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-300">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1 bg-white/5 border border-white/10 rounded-md text-[11px] text-zinc-300">
+              <span className="text-[#10a37f] font-medium">•</span>
               <span className="capitalize">{llmStatus.active_provider} ({llmStatus.active_model})</span>
             </div>
           )}
 
-          {/* Fresh Start / Reset Platform Button */}
+          {/* Reset System Trigger */}
           <button
             onClick={() => setIsResetModalOpen(true)}
-            className="flex items-center space-x-1.5 px-3 py-1 bg-zinc-900 hover:bg-rose-950/60 text-zinc-400 hover:text-rose-300 border border-zinc-800 hover:border-rose-800/60 rounded-lg text-xs font-medium transition-colors"
-            title="Clean up platform data for a fresh start"
+            className="px-2.5 py-1 text-zinc-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-md transition-colors text-xs"
+            title="Clean up platform data"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-rose-400" />
-            <span>Fresh Start</span>
+            Fresh Start
           </button>
 
-          {/* Backend Online Indicator */}
-          <div className="flex items-center space-x-2">
-            <div
-              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-sans ${
-                isHealthy
-                  ? 'text-emerald-400 bg-emerald-950/30 border border-emerald-800/40'
-                  : 'text-rose-400 bg-rose-950/40 border border-rose-800/60'
-              }`}
-            >
-              {isHealthy ? (
-                <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>API Online</span>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                  <span>API Offline</span>
-                </>
-              )}
-            </div>
+          {/* API Health Dot */}
+          <div className="flex items-center space-x-1.5 text-[11px] px-2 py-1">
+            <span className={`w-2 h-2 rounded-full ${isHealthy ? 'bg-emerald-400' : 'bg-rose-500 animate-pulse'}`}></span>
+            <span className="text-zinc-400 hidden md:inline">{isHealthy ? 'Online' : 'Offline'}</span>
           </div>
         </div>
       </header>
 
       {/* Reset Confirmation Modal */}
       {isResetModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-[#121215] border border-zinc-800 rounded-xl p-6 shadow-2xl font-sans">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <div className="flex items-center space-x-2 text-rose-400 font-bold text-sm">
-                <Trash2 className="w-4 h-4" />
-                <span>Fresh Start - System Reset</span>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 font-sans">
+          <div className="w-full max-w-md bg-[#171717] border border-white/10 rounded-xl p-6 shadow-2xl text-xs text-zinc-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <h2 className="font-semibold text-sm text-white">Fresh Start — Reset Platform</h2>
               <button
                 onClick={() => setIsResetModalOpen(false)}
                 className="text-zinc-400 hover:text-white"
               >
-                <X className="w-4 h-4" />
+                ✕
               </button>
             </div>
 
-            <div className="py-4 space-y-3">
-              <p className="text-xs text-zinc-300 leading-relaxed">
-                Are you sure you want to clean up all platform data for a fresh start?
-              </p>
-              <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-lg text-[11px] text-rose-300 space-y-1">
-                <div className="font-semibold">This action will erase:</div>
-                <ul className="list-disc list-inside space-y-0.5 text-zinc-400">
-                  <li>All Workspaces & Projects</li>
-                  <li>All Ingested PDF Documents</li>
-                  <li>All Extracted Structured Datasets & Records</li>
-                  <li>All Validation Audit Logs & Review Histories</li>
-                </ul>
-              </div>
-            </div>
+            <p className="text-zinc-300 leading-relaxed">
+              Are you sure you want to reset and remove all platform data? This action will clean up:
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-zinc-400 pl-1">
+              <li>All Workspaces & Research Projects</li>
+              <li>Ingested PDF Documents & Page Layout Cache</li>
+              <li>Extracted Datasets & Structured Audit Records</li>
+              <li>Human Review Logs & Export Histories</li>
+            </ul>
 
-            <div className="flex justify-end space-x-2 pt-3 border-t border-zinc-800">
+            <div className="flex justify-end space-x-2 pt-3 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(false)}
-                className="px-3.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 rounded-lg"
+                className="px-3.5 py-1.5 bg-[#212121] hover:bg-white/10 text-zinc-300 rounded-md"
               >
                 Cancel
               </button>
@@ -180,10 +214,9 @@ export const Header: React.FC = () => {
                 type="button"
                 onClick={handleResetSystem}
                 disabled={isResetting}
-                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center space-x-1.5"
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-medium rounded-md transition-colors"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
-                <span>{isResetting ? 'Resetting System...' : 'Reset & Start Fresh'}</span>
+                {isResetting ? 'Resetting...' : 'Confirm Reset'}
               </button>
             </div>
           </div>
@@ -192,4 +225,3 @@ export const Header: React.FC = () => {
     </>
   );
 };
-

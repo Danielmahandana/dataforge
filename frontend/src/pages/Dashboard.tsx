@@ -2,18 +2,6 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
-  FolderGit2,
-  FileText,
-  Database,
-  ShieldCheck,
-  ArrowUpRight,
-  Upload,
-  Play,
-  Activity,
-  Sparkles,
-  BarChart2,
-} from 'lucide-react';
-import {
   ResponsiveContainer,
   BarChart,
   Bar,
@@ -24,10 +12,9 @@ import {
 } from 'recharts';
 import { apiClient } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
-import { Badge } from '../components/common/Badge';
 
 export const Dashboard: React.FC = () => {
-  const { selectedProjectId } = useAppStore();
+  const { selectedProjectId, setCreateWorkspaceModalOpen } = useAppStore();
 
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
@@ -49,7 +36,6 @@ export const Dashboard: React.FC = () => {
     queryFn: () => apiClient.getActivity(selectedProjectId || undefined, 8),
   });
 
-  // Aggregate Metrics
   const totalRecords = datasets.reduce((sum, d) => sum + d.record_count, 0);
   const totalValid = datasets.reduce((sum, d) => sum + d.valid_record_count, 0);
   const totalWarnings = datasets.reduce((sum, d) => sum + d.warning_record_count, 0);
@@ -62,157 +48,146 @@ export const Dashboard: React.FC = () => {
       : '100.0';
 
   const chartData = [
-    { name: 'Valid', count: totalValid, color: '#10B981' },
-    { name: 'Warnings', count: totalWarnings, color: '#F59E0B' },
-    { name: 'Errors', count: totalErrors, color: '#EF4444' },
+    { name: 'Valid', count: totalValid, color: '#10a37f' },
+    { name: 'Warnings', count: totalWarnings, color: '#d97706' },
+    { name: 'Errors', count: totalErrors, color: '#e53e3e' },
   ];
 
+  const noProjects = projects.length === 0;
+
   return (
-    <div className="space-y-6 font-sans">
+    <div className="space-y-7 max-w-6xl mx-auto font-sans text-xs">
+
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-5 border-b border-white/10">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100 tracking-tight font-sans">
-            Workstation Overview
-          </h1>
-          <p className="text-sm text-zinc-400 mt-1">
-            Universal document intelligence pipeline metrics and extraction audit telemetry
+          <h1 className="text-xl font-semibold text-white tracking-tight">Workstation Overview</h1>
+          <p className="text-zinc-400 mt-1">
+            Extraction pipeline telemetry, quality metrics, and audit trail
+            {selectedProjectId && ' — filtered by active workspace'}
           </p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
           <Link
             to="/documents"
-            className="flex items-center space-x-2 px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 border border-zinc-700 rounded-lg transition-colors"
+            className="px-3.5 py-2 bg-[#212121] hover:bg-white/10 text-zinc-300 border border-white/10 rounded-md transition-colors font-medium"
           >
-            <Upload className="w-4 h-4 text-emerald-400" />
-            <span>Upload Documents</span>
+            Upload Documents
           </Link>
           <Link
             to="/pipeline"
-            className="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+            className="px-4 py-2 bg-[#10a37f] hover:bg-[#0e8e6e] text-white rounded-md font-medium transition-colors"
           >
-            <Play className="w-4 h-4" />
-            <span>Run Pipeline</span>
+            Run Pipeline
           </Link>
         </div>
       </div>
 
-      {/* Review Queue Alert Banner */}
+      {/* Empty State: No Workspaces — Prominent CTA */}
+      {noProjects && (
+        <div className="py-14 flex flex-col items-center text-center space-y-4 bg-[#171717] rounded-xl border border-white/10">
+          <div className="text-sm font-semibold text-white">Welcome to DataForge</div>
+          <p className="text-zinc-400 max-w-md leading-relaxed">
+            Get started by creating your first research workspace. Workspaces let you isolate documents, define extraction blueprints, and manage relational datasets independently.
+          </p>
+          <button
+            onClick={() => setCreateWorkspaceModalOpen(true)}
+            className="px-5 py-2.5 bg-[#10a37f] hover:bg-[#0e8e6e] text-white font-medium rounded-md transition-colors"
+          >
+            Create a Workspace
+          </button>
+          <p className="text-zinc-500 text-[11px]">
+            After creating a workspace, upload PDF documents and run the AI extraction pipeline.
+          </p>
+        </div>
+      )}
+
+      {/* Review Queue Alert */}
       {totalCurationReview > 0 && (
-        <div className="bg-amber-950/20 border border-amber-800/40 rounded-xl p-4 flex items-center justify-between text-xs">
+        <div className="flex items-center justify-between px-4 py-3 bg-amber-950/20 border border-amber-800/40 rounded-lg">
           <div className="flex items-center space-x-3">
-            <span className="p-2 bg-amber-900/40 border border-amber-700/50 rounded-lg text-amber-400 font-mono font-bold">
-              {totalCurationReview}
-            </span>
+            <span className="font-mono font-bold text-amber-300 text-sm">{totalCurationReview}</span>
             <div>
-              <div className="font-semibold text-amber-300">
-                Prioritized Records Requiring Research Review
-              </div>
-              <div className="text-zinc-400 text-[11px] mt-0.5">
-                Low confidence, cross-chamber borderline matches, or structural ambiguities detected during semantic curation.
+              <div className="font-medium text-amber-200">Records require research review</div>
+              <div className="text-zinc-400 mt-0.5">
+                Low confidence, borderline matches, or structural ambiguities detected.
               </div>
             </div>
           </div>
           <Link
             to="/review"
-            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg transition-colors flex items-center space-x-1.5"
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-medium rounded-md transition-colors flex-shrink-0"
           >
-            <span>Open Review Queue</span>
-            <ArrowUpRight className="w-3.5 h-3.5" />
+            Open Review Queue →
           </Link>
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="p-4 bg-[#121215] border border-zinc-800 rounded-xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400">Total Workspaces</span>
-            <FolderGit2 className="w-4 h-4 text-emerald-400" />
+      {/* KPI Metric Row — Frameless */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10 rounded-xl overflow-hidden border border-white/10">
+        {[
+          {
+            label: 'Research Workspaces',
+            value: projects.length,
+            sub: selectedProjectId ? 'Active scope' : 'Across all projects',
+          },
+          {
+            label: 'Ingested Documents',
+            value: documents.length,
+            sub: 'PDFs classified & parsed',
+          },
+          {
+            label: 'Extracted Records',
+            value: totalRecords.toLocaleString(),
+            sub: `${totalValid.toLocaleString()} validated rows`,
+            highlight: true,
+          },
+          {
+            label: 'Quality Index',
+            value: `${avgQualityScore}%`,
+            sub: `${datasets.length} active dataset(s)`,
+          },
+        ].map((card, i) => (
+          <div key={i} className="bg-[#171717] px-5 py-4">
+            <div className="text-zinc-400 font-medium">{card.label}</div>
+            <div className={`text-2xl font-bold font-mono mt-1.5 ${card.highlight ? 'text-[#10a37f]' : 'text-white'}`}>
+              {card.value}
+            </div>
+            <div className="text-zinc-500 mt-0.5 font-mono text-[10px]">{card.sub}</div>
           </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-zinc-100">
-            {projects.length}
-          </div>
-          <div className="mt-1 text-[11px] text-zinc-500 font-mono">
-            {selectedProjectId ? 'Active workspace filtered' : 'Across all initiatives'}
-          </div>
-        </div>
-
-        <div className="p-4 bg-[#121215] border border-zinc-800 rounded-xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400">Ingested Documents</span>
-            <FileText className="w-4 h-4 text-sky-400" />
-          </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-zinc-100">
-            {documents.length}
-          </div>
-          <div className="mt-1 text-[11px] text-zinc-500 font-mono">
-            PDFs classified & layout parsed
-          </div>
-        </div>
-
-        <div className="p-4 bg-[#121215] border border-zinc-800 rounded-xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400">Extracted Records</span>
-            <Database className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-zinc-100">
-            {totalRecords.toLocaleString()}
-          </div>
-          <div className="mt-1 text-[11px] text-emerald-400 font-mono font-medium">
-            {totalValid.toLocaleString()} validated rows
-          </div>
-        </div>
-
-        <div className="p-4 bg-[#121215] border border-zinc-800 rounded-xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400">Quality Index</span>
-            <ShieldCheck className="w-4 h-4 text-amber-300" />
-          </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-zinc-100">
-            {avgQualityScore}%
-          </div>
-          <div className="mt-1 text-[11px] text-zinc-500 font-mono">
-            Across {datasets.length} active dataset(s)
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Main Grid: Quality Chart & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Record Integrity Distribution Chart */}
-        <div className="lg:col-span-2 bg-[#121215] border border-zinc-800 rounded-xl p-5">
+      {/* Main Content Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Record Quality Chart */}
+        <div className="lg:col-span-2 bg-[#171717] border border-white/10 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-zinc-100 font-sans">
-                Record Quality Distribution
-              </h2>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Data validation status across all extracted table rows
-              </p>
+              <h2 className="text-sm font-semibold text-white">Record Quality Distribution</h2>
+              <p className="text-zinc-400 mt-0.5">Validation status across all extracted table rows</p>
             </div>
             <Link
               to="/validation"
-              className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center space-x-1 font-medium"
+              className="text-[#10a37f] hover:text-[#0e8e6e] font-medium"
             >
-              <span>View Audit</span>
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              View Audit →
             </Link>
           </div>
-
-          <div className="h-60 w-full">
+          <div className="h-56">
             {totalRecords > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 10 }}>
-                  <XAxis type="number" stroke="#71717a" fontSize={11} />
-                  <YAxis dataKey="name" type="category" stroke="#a1a1aa" fontSize={12} width={70} />
+                <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
+                  <XAxis type="number" stroke="#404040" fontSize={11} tick={{ fill: '#707070' }} />
+                  <YAxis dataKey="name" type="category" stroke="#404040" fontSize={12} width={70} tick={{ fill: '#a1a1a1' }} />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#18181b',
-                      borderColor: '#27272a',
+                      backgroundColor: '#212121',
+                      borderColor: 'rgba(255,255,255,0.1)',
                       borderRadius: '8px',
                       fontSize: '12px',
-                      color: '#f4f4f5',
+                      color: '#ececec',
                     }}
                   />
                   <Bar dataKey="count" radius={[0, 4, 4, 0]}>
@@ -223,55 +198,71 @@ export const Dashboard: React.FC = () => {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-zinc-500 text-xs font-sans">
-                <Database className="w-8 h-8 text-zinc-700 mb-2" />
-                <span>No dataset records generated yet. Ingest documents to view metrics.</span>
+              <div className="h-full flex flex-col items-center justify-center text-zinc-500 space-y-2">
+                <div className="text-sm text-zinc-400">No dataset records yet</div>
+                <p className="text-zinc-500">Ingest documents and run the pipeline to see metrics</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Activity Feed */}
-        <div className="bg-[#121215] border border-zinc-800 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <Activity className="w-4 h-4 text-emerald-400" />
-              <h2 className="text-sm font-semibold text-zinc-100 font-sans">
-                Recent Audit Trail
-              </h2>
-            </div>
-          </div>
-
-          <div className="space-y-3">
+        {/* Audit Trail Activity Feed */}
+        <div className="bg-[#171717] border border-white/10 rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-white mb-4">Recent Audit Trail</h2>
+          <div className="space-y-2 overflow-y-auto max-h-64 pr-1">
             {activities.length > 0 ? (
               activities.map((act) => (
                 <div
                   key={act.id}
-                  className="p-3 bg-[#09090b] border border-zinc-800/80 rounded-lg text-xs"
+                  className="px-3 py-2.5 bg-[#212121] rounded-lg space-y-1"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-emerald-400 text-[10px] uppercase font-bold tracking-wider">
+                    <span className="font-mono text-[#10a37f] text-[10px] uppercase font-bold tracking-wider">
                       {act.action}
                     </span>
                     <span className="text-[10px] text-zinc-500 font-mono">
                       {new Date(act.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-zinc-200 mt-1 line-clamp-2 leading-relaxed">{act.description}</p>
-                  <div className="mt-1 text-[10px] text-zinc-500 font-mono">
-                    by {act.user}
-                  </div>
+                  <p className="text-zinc-200 line-clamp-2 leading-relaxed">{act.description}</p>
+                  <div className="text-zinc-500 font-mono text-[10px]">by {act.user}</div>
                 </div>
               ))
             ) : (
-              <div className="py-8 text-center text-zinc-500 text-xs font-mono">
+              <div className="py-10 text-center text-zinc-500">
                 No activity records yet.
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Workflow Navigation Cards — only show if workspaces exist */}
+      {!noProjects && (
+        <div>
+          <h2 className="text-sm font-semibold text-white mb-3">Quick Access</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Workspaces', desc: 'Manage projects & scopes', to: '/projects' },
+              { label: 'Ingest Documents', desc: 'Upload & classify PDFs', to: '/documents' },
+              { label: 'AI Studio', desc: 'Run extraction pipeline', to: '/pipeline' },
+              { label: 'Datasets', desc: 'Browse extracted records', to: '/datasets' },
+              { label: 'Validation', desc: 'Audit data quality', to: '/validation' },
+              { label: 'Review Queue', desc: 'Resolve flagged records', to: '/review' },
+              { label: 'Exports', desc: 'Download datasets', to: '/exports' },
+            ].map((nav) => (
+              <Link
+                key={nav.to}
+                to={nav.to}
+                className="p-3.5 bg-[#171717] hover:bg-white/5 border border-white/10 rounded-lg transition-colors space-y-1"
+              >
+                <div className="text-white font-medium">{nav.label}</div>
+                <div className="text-zinc-400">{nav.desc}</div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-

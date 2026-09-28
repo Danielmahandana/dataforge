@@ -4,28 +4,52 @@
 
 @layer base {
   html, body {
-    background-color: #09090b;
-    color: #f4f4f5;
-    font-family: 'Open Sans', 'Inter', sans-serif;
+    background-color: #0d0d0e;
+    color: #ececec;
+    font-family: 'Open Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     overflow: hidden;
     height: 100%;
     margin: 0;
     padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Custom OpenAI-style scrollbars */
+  /* Custom OpenAI-style subtle scrollbars */
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #27272a;
+    background: #2b2b2e;
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #3f3f46;
   }
+}
+
+/* Frameless table & divider utility classes */
+.openai-hairline {
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+.openai-panel {
+  background-color: #171717;
+}
+
+.openai-input {
+  background-color: #212121;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ececec;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+.openai-input:focus {
+  outline: none;
+  border-color: #10a37f;
 }

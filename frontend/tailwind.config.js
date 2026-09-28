@@ -7,24 +7,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        darkroom: {
-          bg: "#09090b",
-          surface: "#121215",
-          card: "#18181b",
-          border: "#27272a",
-          borderLight: "#3f3f46",
-          navy: "#182232",
-          navyLight: "#233348",
-          gold: "#e2b714",
-          goldHover: "#f5cc24",
-          goldLight: "rgba(226, 183, 20, 0.12)",
+        openai: {
+          bg: "#0d0d0e",
+          sidebar: "#171717",
+          panel: "#171717",
+          surface: "#212121",
+          border: "rgba(255, 255, 255, 0.08)",
           emerald: "#10a37f",
-          emeraldHover: "#12b88f",
-          success: "#10B981",
-          warning: "#F59E0B",
-          danger: "#EF4444",
-          text: "#f4f4f5",
-          muted: "#a1a1aa",
+          emeraldHover: "#0e8e6e",
+          text: "#ececec",
+          secondary: "#b4b4b4",
+          muted: "#707070",
         }
       },
       fontFamily: {

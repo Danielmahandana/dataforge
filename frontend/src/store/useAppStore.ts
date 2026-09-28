@@ -11,6 +11,10 @@ interface SourceModalState {
 interface AppState {
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
+  isSidebarOpen: boolean;
+  toggleSidebar: () => void;
+  isCreateWorkspaceModalOpen: boolean;
+  setCreateWorkspaceModalOpen: (open: boolean) => void;
   sourceModal: SourceModalState;
   openSourceModal: (params: {
     documentId: string;
@@ -24,6 +28,10 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   selectedProjectId: null,
   setSelectedProjectId: (id) => set({ selectedProjectId: id }),
+  isSidebarOpen: true,
+  toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
+  isCreateWorkspaceModalOpen: false,
+  setCreateWorkspaceModalOpen: (open) => set({ isCreateWorkspaceModalOpen: open }),
   sourceModal: {
     isOpen: false,
     documentId: '',
