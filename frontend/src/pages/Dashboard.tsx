@@ -54,6 +54,7 @@ export const Dashboard: React.FC = () => {
   const totalValid = datasets.reduce((sum, d) => sum + d.valid_record_count, 0);
   const totalWarnings = datasets.reduce((sum, d) => sum + d.warning_record_count, 0);
   const totalErrors = datasets.reduce((sum, d) => sum + d.error_record_count, 0);
+  const totalCurationReview = datasets.reduce((sum, d) => sum + (d.curation_summary?.review_required || 0), 0);
 
   const avgQualityScore =
     datasets.length > 0
@@ -95,6 +96,32 @@ export const Dashboard: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Review Queue Alert Banner */}
+      {totalCurationReview > 0 && (
+        <div className="bg-amber-950/20 border border-amber-800/40 rounded-xl p-4 flex items-center justify-between text-xs">
+          <div className="flex items-center space-x-3">
+            <span className="p-2 bg-amber-900/40 border border-amber-700/50 rounded-lg text-amber-400 font-mono font-bold">
+              {totalCurationReview}
+            </span>
+            <div>
+              <div className="font-semibold text-amber-300">
+                Prioritized Records Requiring Research Review
+              </div>
+              <div className="text-zinc-400 text-[11px] mt-0.5">
+                Low confidence, cross-chamber borderline matches, or structural ambiguities detected during semantic curation.
+              </div>
+            </div>
+          </div>
+          <Link
+            to="/review"
+            className="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold rounded-lg transition-colors flex items-center space-x-1.5"
+          >
+            <span>Open Review Queue</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

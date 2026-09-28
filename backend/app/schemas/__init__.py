@@ -21,6 +21,17 @@ from backend.app.schemas.review import (
 )
 from backend.app.schemas.activity import ActivityResponse
 from backend.app.schemas.export import ExportRequest, ExportResponse
+from backend.app.schemas.curation import (
+    DatasetIntentCreate, DatasetIntentResponse,
+    CurationPolicyCreate, CurationPolicyResponse,
+    CurationRunCreate, CurationRunResponse,
+    EvidenceItemResponse, DecisionLedgerResponse,
+    CurationDecisionResponse, RecordReviewRequest,
+    ReviewQueueItem, ReviewQueueResponse,
+    LineageStep, LineageGraphResponse,
+    QualityDimensionsResponse, QualityGatesResponse,
+    DeduplicationRunResponse, SourceConflictResponse
+)
 
 __all__ = [
     "ProjectBase", "ProjectCreate", "ProjectUpdate", "ProjectResponse",
@@ -32,4 +43,13 @@ __all__ = [
     "ReviewAuditCreate", "ReviewAuditResponse",
     "ActivityResponse",
     "ExportRequest", "ExportResponse",
+    "DatasetIntentCreate", "DatasetIntentResponse",
+    "CurationPolicyCreate", "CurationPolicyResponse",
+    "CurationRunCreate", "CurationRunResponse",
+    "EvidenceItemResponse", "DecisionLedgerResponse",
+    "CurationDecisionResponse", "RecordReviewRequest",
+    "ReviewQueueItem", "ReviewQueueResponse",
+    "LineageStep", "LineageGraphResponse",
+    "QualityDimensionsResponse", "QualityGatesResponse",
+    "DeduplicationRunResponse", "SourceConflictResponse",
 ]

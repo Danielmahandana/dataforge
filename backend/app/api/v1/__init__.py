@@ -11,6 +11,7 @@ from backend.app.api.v1.exports import router as exports_router
 from backend.app.api.v1.activity import router as activity_router
 from backend.app.api.v1.llm import router as llm_router
 from backend.app.api.v1.system import router as system_router
+from backend.app.api.v1.curation import router as curation_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
@@ -26,4 +27,4 @@ api_v1_router.include_router(exports_router)
 api_v1_router.include_router(activity_router)
 api_v1_router.include_router(llm_router)
 api_v1_router.include_router(system_router)
-
+api_v1_router.include_router(curation_router)

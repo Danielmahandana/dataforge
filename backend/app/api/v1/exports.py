@@ -1,4 +1,5 @@
 import re
+from typing import Optional, List, Dict, Any
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -18,15 +19,21 @@ router = APIRouter(tags=["Exports"])
 def export_dataset(
     dataset_id: str,
     payload: ExportRequest,
+    project_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
-    dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    dataset_query = db.query(Dataset).filter(Dataset.id == dataset_id)
+    if project_id:
+        dataset_query = dataset_query.filter(Dataset.project_id == project_id)
+    dataset = dataset_query.first()
     if not dataset:
-        raise HTTPException(status_code=404, detail="Dataset not found")
+        raise HTTPException(status_code=404, detail="Dataset not found or does not belong to specified project")
 
     query = db.query(Record).filter(Record.dataset_id == dataset_id)
     if payload.only_valid_records:
         query = query.filter(Record.status.in_(["valid", "human_reviewed"]))
+    if payload.curation_filter:
+        query = query.filter(Record.curation_decision == payload.curation_filter.upper())
 
     records = query.order_by(Record.row_index.asc()).all()
 
@@ -37,6 +44,10 @@ def export_dataset(
             "provenance": r.provenance,
             "confidence_score": r.confidence_score,
             "status": r.status,
+            "curation_decision": r.curation_decision,
+            "curation_reason": r.curation_reason,
+            "multi_confidence": r.multi_confidence,
+            "derived_data": r.derived_data,
         }
         for r in records
     ]
@@ -45,6 +56,7 @@ def export_dataset(
         records=record_dicts,
         format=payload.format,
         include_provenance=payload.include_provenance,
+        include_curation=payload.include_curation,
         selected_columns=payload.selected_columns,
     )
 

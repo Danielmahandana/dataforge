@@ -14,6 +14,7 @@ from backend.app.models.project import Project
 from backend.app.models.activity import ActivityLog
 from backend.app.schemas.document import DocumentResponse, DocumentUpdate, DocumentInspectResponse
 from backend.app.storage.local import storage_manager
+from backend.app.document_intelligence.profiler import DocumentProfiler
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
@@ -198,3 +199,97 @@ def delete_document(document_id: str, db: Session = Depends(get_db)):
     db.delete(doc)
     db.commit()
     return None
+
+@router.get("/{document_id}/profile")
+def get_document_profile(document_id: str, db: Session = Depends(get_db)):
+    """Profiles a document, extracting structural sections, classified tables, and candidate datasets."""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.doc_metadata and "document_profile_cache" in doc.doc_metadata:
+        return doc.doc_metadata["document_profile_cache"]
+
+    try:
+        profile = DocumentProfiler.profile_document(doc.file_path, doc.id)
+        profile_dict = profile.model_dump()
+
+        doc.doc_metadata = {
+            **(doc.doc_metadata or {}),
+            "document_profile_cache": profile_dict,
+            "document_type": profile.document_type.value,
+        }
+        db.commit()
+        return profile_dict
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to profile document: {str(e)}")
+
+
+@router.get("/{document_id}/structure")
+def get_document_structure(document_id: str, db: Session = Depends(get_db)):
+    """Returns the structural hierarchy (sections and tables) for a document."""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.doc_metadata and "document_profile_cache" in doc.doc_metadata:
+        cache = doc.doc_metadata["document_profile_cache"]
+        return {
+            "document_id": doc.id,
+            "sections": cache.get("sections", []),
+            "tables": cache.get("tables", []),
+            "page_count": cache.get("page_count", doc.page_count),
+        }
+
+    try:
+        profile = DocumentProfiler.profile_document(doc.file_path, doc.id)
+        profile_dict = profile.model_dump()
+        doc.doc_metadata = {
+            **(doc.doc_metadata or {}),
+            "document_profile_cache": profile_dict,
+            "document_type": profile.document_type.value,
+        }
+        db.commit()
+        return {
+            "document_id": doc.id,
+            "sections": profile_dict.get("sections", []),
+            "tables": profile_dict.get("tables", []),
+            "page_count": profile.page_count,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to extract structure: {str(e)}")
+
+
+@router.get("/{document_id}/candidates")
+def get_document_dataset_candidates(document_id: str, db: Session = Depends(get_db)):
+    """Returns all discovered dataset candidates, the authoritative candidate ID, and discovery report."""
+    doc = db.query(Document).filter(Document.id == document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if doc.doc_metadata and "document_profile_cache" in doc.doc_metadata:
+        cache = doc.doc_metadata["document_profile_cache"]
+        return {
+            "document_id": doc.id,
+            "candidates": cache.get("dataset_candidates", []),
+            "authoritative_dataset_id": cache.get("authoritative_dataset_id"),
+            "discovery_report": cache.get("discovery_report"),
+        }
+
+    try:
+        profile = DocumentProfiler.profile_document(doc.file_path, doc.id)
+        profile_dict = profile.model_dump()
+        doc.doc_metadata = {
+            **(doc.doc_metadata or {}),
+            "document_profile_cache": profile_dict,
+            "document_type": profile.document_type.value,
+        }
+        db.commit()
+        return {
+            "document_id": doc.id,
+            "candidates": profile_dict.get("dataset_candidates", []),
+            "authoritative_dataset_id": profile.authoritative_dataset_id,
+            "discovery_report": profile_dict.get("discovery_report"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to discover dataset candidates: {str(e)}")

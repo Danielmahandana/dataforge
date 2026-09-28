@@ -12,6 +12,13 @@ import {
   ReviewAudit,
   ActivityLog,
   ExportResponse,
+  DatasetIntent,
+  CurationPolicy,
+  CurationRun,
+  EvidenceItem,
+  LineageGraph,
+  ReviewQueueResponse,
+  QualityGates,
 } from '../types';
 
 const api = axios.create({
@@ -184,7 +191,14 @@ export const apiClient = {
   // Exports
   exportDataset: async (
     datasetId: string,
-    payload: { format: string; include_provenance?: boolean; only_valid_records?: boolean; selected_columns?: string[] }
+    payload: {
+      format: string;
+      include_provenance?: boolean;
+      include_curation?: boolean;
+      curation_filter?: string | null;
+      only_valid_records?: boolean;
+      selected_columns?: string[];
+    }
   ): Promise<ExportResponse> => {
     const res = await api.post(`/datasets/${datasetId}/export`, payload);
     return res.data;
@@ -215,6 +229,59 @@ export const apiClient = {
   },
   summarizeDatasetWithLLM: async (datasetId: string) => {
     const res = await api.post('/llm/summarize-dataset', { dataset_id: datasetId });
+    return res.data;
+  },
+
+  // Curation & Intent Governance
+  getIntents: async (projectId?: string): Promise<DatasetIntent[]> => {
+    const res = await api.get('/curation/intents', { params: { project_id: projectId } });
+    return res.data;
+  },
+  createIntent: async (data: Partial<DatasetIntent>): Promise<DatasetIntent> => {
+    const res = await api.post('/curation/intents', data);
+    return res.data;
+  },
+  deleteIntent: async (id: string): Promise<void> => {
+    await api.delete(`/curation/intents/${id}`);
+  },
+  getPolicies: async (): Promise<CurationPolicy[]> => {
+    const res = await api.get('/curation/policies');
+    return res.data;
+  },
+  createPolicy: async (data: Partial<CurationPolicy>): Promise<CurationPolicy> => {
+    const res = await api.post('/curation/policies', data);
+    return res.data;
+  },
+  createCurationRun: async (data: { dataset_id: string; intent_id?: string; policy_id?: string }): Promise<CurationRun> => {
+    const res = await api.post('/curation/runs', data);
+    return res.data;
+  },
+  getCurationRun: async (runId: string): Promise<CurationRun> => {
+    const res = await api.get(`/curation/runs/${runId}`);
+    return res.data;
+  },
+  getRecordEvidence: async (recordId: string): Promise<EvidenceItem[]> => {
+    const res = await api.get(`/curation/records/${recordId}/evidence`);
+    return res.data;
+  },
+  getRecordLineage: async (recordId: string): Promise<LineageGraph> => {
+    const res = await api.get(`/curation/records/${recordId}/lineage`);
+    return res.data;
+  },
+  reviewRecordDecision: async (recordId: string, data: { decision: string; notes?: string; reviewer_name?: string }): Promise<any> => {
+    const res = await api.post(`/curation/records/${recordId}/review`, data);
+    return res.data;
+  },
+  getReviewQueue: async (datasetId: string): Promise<ReviewQueueResponse> => {
+    const res = await api.get(`/curation/datasets/${datasetId}/review-queue`);
+    return res.data;
+  },
+  runDeduplication: async (datasetId: string): Promise<any> => {
+    const res = await api.post(`/curation/datasets/${datasetId}/deduplicate`);
+    return res.data;
+  },
+  getQualityGates: async (datasetId: string): Promise<QualityGates> => {
+    const res = await api.get(`/curation/datasets/${datasetId}/quality-gates`);
     return res.data;
   },
 

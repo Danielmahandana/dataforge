@@ -15,11 +15,16 @@ import {
   X,
   Sparkles,
   Package,
+  Network,
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
-import { DatasetRecord } from '../types';
+import { DatasetRecord, EvidenceItem, LineageGraph } from '../types';
 import { DatasetAIAssistant } from '../components/DatasetAIAssistant';
+import { QualityGatesCard } from '../components/common/QualityGatesCard';
+import { EvidenceModal } from '../components/common/EvidenceModal';
+import { LineageModal } from '../components/common/LineageModal';
+import { CurationRunModal } from '../components/common/CurationRunModal';
 
 export const DatasetDetails: React.FC = () => {
   const { datasetId } = useParams<{ datasetId: string }>();
@@ -30,11 +35,21 @@ export const DatasetDetails: React.FC = () => {
   const [pageSize, setPageSize] = useState(25);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [curationFilter, setCurationFilter] = useState('');
   const [editingRecord, setEditingRecord] = useState<DatasetRecord | null>(null);
   const [editFormData, setEditFormData] = useState<Record<string, any>>({});
   const [editNotes, setEditNotes] = useState('');
   const [relationalExportData, setRelationalExportData] = useState<any | null>(null);
   const [isExportingRelational, setIsExportingRelational] = useState(false);
+
+  // Curation & Evidence Modals
+  const [isCurationModalOpen, setIsCurationModalOpen] = useState(false);
+  const [evidenceModalOpen, setEvidenceModalOpen] = useState(false);
+  const [selectedRecordForEvidence, setSelectedRecordForEvidence] = useState<DatasetRecord | null>(null);
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([]);
+  const [lineageModalOpen, setLineageModalOpen] = useState(false);
+  const [selectedRecordForLineage, setSelectedRecordForLineage] = useState<DatasetRecord | null>(null);
+  const [lineageData, setLineageData] = useState<LineageGraph | null>(null);
 
   const { data: dataset, isLoading: isDatasetLoading } = useQuery({
     queryKey: ['dataset', datasetId],
@@ -77,6 +92,28 @@ export const DatasetDetails: React.FC = () => {
     },
   });
 
+  const handleOpenEvidence = async (rec: DatasetRecord) => {
+    setSelectedRecordForEvidence(rec);
+    setEvidenceModalOpen(true);
+    try {
+      const items = await apiClient.getRecordEvidence(rec.id);
+      setEvidenceItems(items);
+    } catch {
+      setEvidenceItems([]);
+    }
+  };
+
+  const handleOpenLineage = async (rec: DatasetRecord) => {
+    setSelectedRecordForLineage(rec);
+    setLineageModalOpen(true);
+    try {
+      const data = await apiClient.getRecordLineage(rec.id);
+      setLineageData(data);
+    } catch {
+      setLineageData(null);
+    }
+  };
+
   const handleExportRelationalPackage = async () => {
     if (!datasetId) return;
     setIsExportingRelational(true);
@@ -107,7 +144,11 @@ export const DatasetDetails: React.FC = () => {
   }
 
   const columns = dataset.schema_columns || [];
-  const records = recordsData?.records || [];
+  const rawRecords = recordsData?.records || [];
+  const records = rawRecords.filter((r) => {
+    if (!curationFilter) return true;
+    return (r.curation_decision || 'unprocessed').toUpperCase() === curationFilter.toUpperCase();
+  });
   const total = recordsData?.total || 0;
   const totalPages = Math.ceil(total / pageSize) || 1;
 
@@ -127,6 +168,8 @@ export const DatasetDetails: React.FC = () => {
     });
   };
 
+  const curSummary = dataset.curation_summary || { included: 0, excluded: 0, review_required: 0, unprocessed: 0 };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Header */}
@@ -144,12 +187,31 @@ export const DatasetDetails: React.FC = () => {
           <h1 className="text-xl font-semibold text-zinc-100 tracking-tight mt-1 flex items-center space-x-2">
             <span>{dataset.name}</span>
           </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Model: <span className="text-zinc-200 capitalize">{dataset.schema_name}</span> • {dataset.record_count.toLocaleString()} Total Records • Quality Score: <span className="text-amber-400 font-semibold">{dataset.quality_score}%</span>
-          </p>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400 mt-1">
+            <span>Model: <strong className="text-zinc-200 capitalize">{dataset.schema_name}</strong></span>
+            <span>•</span>
+            <span>{dataset.record_count.toLocaleString()} Total Records</span>
+            <span>•</span>
+            <span>Quality Score: <strong className="text-amber-400">{dataset.quality_score}%</strong></span>
+            {dataset.policy_id && (
+              <>
+                <span>•</span>
+                <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] border border-slate-700">
+                  Policy: {dataset.policy_id}
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setIsCurationModalOpen(true)}
+            className="flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-sm transition"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Run Semantic Curation</span>
+          </button>
           <button
             onClick={handleExportRelationalPackage}
             disabled={isExportingRelational}
@@ -176,6 +238,37 @@ export const DatasetDetails: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Quality Gates & Dimension Scorecard */}
+      <QualityGatesCard
+        dimensions={dataset.quality_dimensions as any}
+        gates={dataset.quality_gates_status}
+        overallScore={dataset.quality_score}
+        criticalIssuesCount={dataset.error_record_count}
+      />
+
+      {/* Curation Summary Metric Chips */}
+      {(curSummary.included > 0 || curSummary.review_required > 0 || curSummary.excluded > 0) && (
+        <div className="flex flex-wrap items-center gap-3 p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+          <span className="text-slate-400 font-medium">Curation Decision Breakdown:</span>
+          <span className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold font-mono">
+            {curSummary.included} INCLUDED
+          </span>
+          <span className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold font-mono">
+            {curSummary.review_required} IN REVIEW
+          </span>
+          <span className="px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-semibold font-mono">
+            {curSummary.excluded} EXCLUDED
+          </span>
+          <Link
+            to="/review"
+            state={{ defaultDatasetId: dataset.id }}
+            className="ml-auto text-sky-400 hover:text-sky-300 font-semibold text-xs flex items-center gap-1"
+          >
+            Open Prioritized Review Queue →
+          </Link>
+        </div>
+      )}
 
       {/* Relational Package Downloads Modal / Panel */}
       {relationalExportData && (
@@ -242,11 +335,26 @@ export const DatasetDetails: React.FC = () => {
             }}
             className="px-3.5 py-2 bg-[#09090b] border border-zinc-800 rounded-xl text-xs text-zinc-200 focus:outline-none focus:border-amber-400"
           >
-            <option value="">All Statuses</option>
+            <option value="">All Validation Statuses</option>
             <option value="valid">Valid Only</option>
             <option value="warning">Warnings</option>
             <option value="error">Errors</option>
             <option value="human_reviewed">Human Reviewed</option>
+          </select>
+
+          <select
+            value={curationFilter}
+            onChange={(e) => {
+              setCurationFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-3.5 py-2 bg-[#09090b] border border-zinc-800 rounded-xl text-xs text-zinc-200 focus:outline-none focus:border-emerald-400"
+          >
+            <option value="">All Curation Decisions</option>
+            <option value="INCLUDE">INCLUDE Only</option>
+            <option value="REVIEW">REVIEW Only</option>
+            <option value="EXCLUDE">EXCLUDE Only</option>
+            <option value="unprocessed">Unprocessed</option>
           </select>
         </div>
 
@@ -273,8 +381,10 @@ export const DatasetDetails: React.FC = () => {
           <table className="w-full text-left text-xs whitespace-nowrap">
             <thead className="bg-zinc-900/90 sticky top-0 z-10 border-b border-zinc-800 text-zinc-300">
               <tr>
-                <th className="p-3.5 w-14 text-center">#</th>
-                <th className="p-3.5">Status</th>
+                <th className="p-3.5 w-12 text-center">#</th>
+                <th className="p-3.5">Curation Decision</th>
+                <th className="p-3.5">Confidence</th>
+                <th className="p-3.5">Validation</th>
                 <th className="p-3.5">Source Lineage</th>
                 {columns.map((col) => (
                   <th key={col.name} className="p-3.5">
@@ -284,12 +394,15 @@ export const DatasetDetails: React.FC = () => {
                     </div>
                   </th>
                 ))}
-                <th className="p-3.5 text-right">Actions</th>
+                <th className="p-3.5 text-right">Evidence & Audit</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60 text-zinc-300">
               {records.map((record) => {
                 const prov = record.provenance || {};
+                const dec = record.curation_decision || 'unprocessed';
+                const conf = record.confidence_score !== undefined ? record.confidence_score : 1.0;
+
                 return (
                   <tr
                     key={record.id}
@@ -298,6 +411,42 @@ export const DatasetDetails: React.FC = () => {
                     <td className="p-3.5 text-center text-zinc-500 font-semibold">
                       {record.row_index}
                     </td>
+
+                    {/* Curation Decision Badge */}
+                    <td className="p-3.5">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                          dec === 'INCLUDE'
+                            ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800/50'
+                            : dec === 'EXCLUDE'
+                            ? 'bg-rose-950/60 text-rose-400 border border-rose-800/50'
+                            : dec === 'REVIEW'
+                            ? 'bg-amber-950/60 text-amber-400 border border-amber-800/50'
+                            : 'bg-zinc-800/60 text-slate-400 border border-zinc-700/50'
+                        }`}
+                      >
+                        {dec}
+                      </span>
+                    </td>
+
+                    {/* Multi-Dimensional Confidence */}
+                    <td className="p-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[11px] font-semibold text-slate-200">
+                          {Math.round(conf * 100)}%
+                        </span>
+                        {record.multi_confidence && (
+                          <span
+                            className="text-[10px] text-slate-500 cursor-help"
+                            title={`Extraction: ${Math.round((record.multi_confidence.extraction || 1)*100)}% | Normalization: ${Math.round((record.multi_confidence.normalization || 1)*100)}% | Validation: ${Math.round((record.multi_confidence.validation || 1)*100)}% | Curation: ${Math.round((record.multi_confidence.curation || 1)*100)}%`}
+                          >
+                            ℹ️
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Validation Status */}
                     <td className="p-3.5">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
@@ -313,6 +462,8 @@ export const DatasetDetails: React.FC = () => {
                         {record.status}
                       </span>
                     </td>
+
+                    {/* Source Lineage */}
                     <td className="p-3.5">
                       {prov.document_id ? (
                         <button
@@ -324,7 +475,7 @@ export const DatasetDetails: React.FC = () => {
                               recordIndex: record.row_index,
                             })
                           }
-                          className="flex items-center space-x-1.5 px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-zinc-800 rounded-lg text-[11px] transition"
+                          className="flex items-center space-x-1 px-2 py-1 bg-zinc-900 hover:bg-zinc-800 text-amber-400 border border-zinc-800 rounded text-[11px] transition"
                           title="Open exact PDF page in viewer"
                         >
                           <FileText className="w-3 h-3 text-amber-400" />
@@ -353,37 +504,29 @@ export const DatasetDetails: React.FC = () => {
 
                     {/* Actions */}
                     <td className="p-3.5 text-right">
-                      <div className="flex items-center justify-end space-x-1.5">
+                      <div className="flex items-center justify-end space-x-1">
+                        <button
+                          onClick={() => handleOpenEvidence(record)}
+                          className="px-2 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-medium flex items-center gap-1 transition"
+                          title="View Verifiable Evidence Set"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <span>Evidence</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenLineage(record)}
+                          className="px-2 py-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 text-[11px] font-medium flex items-center gap-1 transition"
+                          title="View Full Provenance Lineage"
+                        >
+                          <Network className="w-3.5 h-3.5" />
+                          <span>Lineage</span>
+                        </button>
                         <button
                           onClick={() => handleEditClick(record)}
-                          className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 rounded-lg transition"
+                          className="p-1 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 rounded transition"
                           title="Edit Row Values"
                         >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() =>
-                            reviewActionMutation.mutate({
-                              recordId: record.id,
-                              action: 'approve_record',
-                            })
-                          }
-                          className="p-1.5 text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 rounded-lg transition"
-                          title="Approve Record"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() =>
-                            reviewActionMutation.mutate({
-                              recordId: record.id,
-                              action: 'flag_record',
-                            })
-                          }
-                          className="p-1.5 text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 rounded-lg transition"
-                          title="Flag for Investigation"
-                        >
-                          <AlertTriangle className="w-4 h-4" />
+                          <Edit2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -394,32 +537,26 @@ export const DatasetDetails: React.FC = () => {
           </table>
         </div>
 
-        {records.length === 0 && !isRecordsLoading && (
-          <div className="p-12 text-center text-zinc-500 text-xs">
-            No records match current filter criteria.
-          </div>
-        )}
-
-        {/* Pagination Footer */}
-        <div className="p-4 bg-zinc-900/60 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
+        {/* Pagination controls */}
+        <div className="p-4 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
           <div>
-            Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, total)} of {total.toLocaleString()} records
+            Showing {records.length} of {total} records
           </div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="p-1.5 bg-[#09090b] border border-zinc-800 rounded-lg hover:text-white disabled:opacity-30"
+              disabled={page === 1}
+              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 disabled:opacity-40"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-zinc-200 font-semibold">
+            <span className="text-zinc-200">
               Page {page} of {totalPages}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="p-1.5 bg-[#09090b] border border-zinc-800 rounded-lg hover:text-white disabled:opacity-30"
+              disabled={page === totalPages}
+              className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 disabled:opacity-40"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -427,13 +564,14 @@ export const DatasetDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* Edit Record Modal */}
+      {/* Row Edit Modal */}
       {editingRecord && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl bg-[#121215] border border-zinc-800 rounded-2xl shadow-2xl p-6 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
-              <h3 className="text-sm font-semibold text-zinc-100">
-                Edit Record #{editingRecord.row_index}
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#121215] border border-zinc-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <h3 className="text-sm font-semibold text-zinc-100 flex items-center space-x-2">
+                <Edit2 className="w-4 h-4 text-amber-400" />
+                <span>Edit Record Row #{editingRecord.row_index}</span>
               </h3>
               <button
                 onClick={() => setEditingRecord(null)}
@@ -443,17 +581,20 @@ export const DatasetDetails: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto mt-4 space-y-4 pr-1">
+            <form onSubmit={handleSaveEdit} className="space-y-4 max-h-[65vh] overflow-y-auto pr-1">
               {columns.map((col) => (
                 <div key={col.name}>
-                  <label className="block text-xs text-zinc-300 mb-1">
-                    {col.name} {col.required && <span className="text-rose-400">*</span>}
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1 capitalize">
+                    {col.name.replace(/_/g, ' ')}
                   </label>
                   <input
                     type="text"
-                    value={editFormData[col.name] ?? ''}
+                    value={editFormData[col.name] !== undefined ? editFormData[col.name] : ''}
                     onChange={(e) =>
-                      setEditFormData({ ...editFormData, [col.name]: e.target.value })
+                      setEditFormData({
+                        ...editFormData,
+                        [col.name]: e.target.value,
+                      })
                     }
                     className="w-full px-3 py-2 bg-[#09090b] border border-zinc-800 rounded-xl text-xs text-zinc-200 focus:outline-none focus:border-amber-400"
                   />
@@ -493,6 +634,71 @@ export const DatasetDetails: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Curation Run Modal */}
+      <CurationRunModal
+        isOpen={isCurationModalOpen}
+        onClose={() => setIsCurationModalOpen(false)}
+        datasetId={dataset.id}
+        datasetName={dataset.name}
+        projectId={dataset.project_id}
+        onRunStarted={() => {
+          queryClient.invalidateQueries({ queryKey: ['records', datasetId] });
+          queryClient.invalidateQueries({ queryKey: ['dataset', datasetId] });
+        }}
+      />
+
+      {/* Evidence Explorer Modal */}
+      <EvidenceModal
+        isOpen={evidenceModalOpen}
+        onClose={() => setEvidenceModalOpen(false)}
+        recordTitle={
+          selectedRecordForEvidence
+            ? String(
+                selectedRecordForEvidence.data.occupation_title ||
+                selectedRecordForEvidence.data.qualification ||
+                `Row #${selectedRecordForEvidence.row_index}`
+              )
+            : ''
+        }
+        evidenceItems={evidenceItems}
+        curationDecision={selectedRecordForEvidence?.curation_decision}
+        confidence={selectedRecordForEvidence?.confidence_score}
+        onViewSource={() => {
+          if (selectedRecordForEvidence?.provenance?.document_id) {
+            openSourceModal({
+              documentId: selectedRecordForEvidence.provenance.document_id,
+              documentName: selectedRecordForEvidence.provenance.document_name || 'Source Document',
+              pageNumber: selectedRecordForEvidence.provenance.page_number || 1,
+              recordIndex: selectedRecordForEvidence.row_index,
+            });
+          }
+        }}
+      />
+
+      {/* Lineage Modal */}
+      <LineageModal
+        isOpen={lineageModalOpen}
+        onClose={() => setLineageModalOpen(false)}
+        recordTitle={
+          selectedRecordForLineage
+            ? String(
+                selectedRecordForLineage.data.occupation_title ||
+                selectedRecordForLineage.data.qualification ||
+                `Row #${selectedRecordForLineage.row_index}`
+              )
+            : ''
+        }
+        lineage={lineageData}
+        onViewSource={(docId, pageNum) => {
+          openSourceModal({
+            documentId: docId,
+            documentName: 'Source Document',
+            pageNumber: pageNum,
+            recordIndex: selectedRecordForLineage?.row_index || 1,
+          });
+        }}
+      />
     </div>
   );
 };

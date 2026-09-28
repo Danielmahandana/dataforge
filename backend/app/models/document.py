@@ -28,6 +28,10 @@ class Document(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
+    @property
+    def sha256_hash(self) -> str:
+        return self.file_hash or "N/A"
+
     # Relationships
     project = relationship("Project", back_populates="documents")
     jobs = relationship("ExtractionJob", back_populates="document", cascade="all, delete-orphan")

@@ -6,6 +6,18 @@ from backend.app.models.record import Record
 from backend.app.models.validation_issue import ValidationIssue
 from backend.app.models.review import ReviewAudit
 from backend.app.models.activity import ActivityLog
+from backend.app.models.curation import (
+    DatasetIntent,
+    CurationPolicy,
+    CurationRun,
+    CurationDecision,
+    EvidenceItem,
+    DecisionLedger,
+    ClassificationNode,
+    SemanticRelationship,
+    SourceConflict,
+    DatasetVersion,
+)
 
 __all__ = [
     "Project",
@@ -16,4 +28,14 @@ __all__ = [
     "ValidationIssue",
     "ReviewAudit",
     "ActivityLog",
+    "DatasetIntent",
+    "CurationPolicy",
+    "CurationRun",
+    "CurationDecision",
+    "EvidenceItem",
+    "DecisionLedger",
+    "ClassificationNode",
+    "SemanticRelationship",
+    "SourceConflict",
+    "DatasetVersion",
 ]
