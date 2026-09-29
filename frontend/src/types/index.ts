@@ -220,7 +220,22 @@ export interface ExportResponse {
   format: string;
   record_count: number;
   file_size_bytes: number;
+  domain_knowledge_filename?: string;
+  domain_knowledge_hash?: string;
 }
+
+export interface DomainKnowledgePreview {
+  dataset_id: string;
+  dataset_name: string;
+  filename: string;
+  content: string;
+  content_hash: string;
+  record_count: number;
+  generator_version: string;
+  generated_at: string;
+  download_url: string;
+}
+
 
 // --- Curation & Governance Domain Interfaces ---
 

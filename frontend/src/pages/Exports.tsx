@@ -14,10 +14,14 @@ import {
   Sparkles,
   Sliders,
   Layers,
+  BookOpen,
+  Copy,
+  Check,
+  X,
 } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { useAppStore } from '../store/useAppStore';
-import { ExportResponse, QualityGates } from '../types';
+import { ExportResponse, QualityGates, DomainKnowledgePreview } from '../types';
 
 type ExportPreset = 'clean_production' | 'research_curated' | 'full_audit' | 'custom';
 
@@ -32,9 +36,12 @@ export const Exports: React.FC = () => {
   const [format, setFormat] = useState<string>('csv');
   const [includeProvenance, setIncludeProvenance] = useState<boolean>(true);
   const [includeCuration, setIncludeCuration] = useState<boolean>(true);
+  const [includeDomainKnowledge, setIncludeDomainKnowledge] = useState<boolean>(true);
   const [curationFilter, setCurationFilter] = useState<string>('INCLUDE');
   const [onlyValidRecords, setOnlyValidRecords] = useState<boolean>(false);
   const [lastExport, setLastExport] = useState<ExportResponse | null>(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState<boolean>(false);
+  const [copied, setCopied] = useState<boolean>(false);
 
   const { data: datasets = [] } = useQuery({
     queryKey: ['datasets', selectedProjectId],
@@ -54,22 +61,38 @@ export const Exports: React.FC = () => {
     enabled: !!activeDatasetId,
   });
 
+  // Fetch domain knowledge preview when modal is opened
+  const { data: domainKnowledgePreview, isLoading: isLoadingPreview } = useQuery<DomainKnowledgePreview>({
+    queryKey: ['domainKnowledgePreview', activeDatasetId],
+    queryFn: () => apiClient.getDomainKnowledgePreview(activeDatasetId),
+    enabled: previewModalOpen && !!activeDatasetId,
+  });
+
+  const handleCopyText = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   // Handle Preset Switching
   const handlePresetSelect = (selected: ExportPreset) => {
     setPreset(selected);
     if (selected === 'clean_production') {
       setIncludeProvenance(false);
       setIncludeCuration(false);
+      setIncludeDomainKnowledge(false);
       setCurationFilter('INCLUDE');
       setOnlyValidRecords(true);
     } else if (selected === 'research_curated') {
       setIncludeProvenance(true);
       setIncludeCuration(true);
+      setIncludeDomainKnowledge(true);
       setCurationFilter('INCLUDE');
       setOnlyValidRecords(false);
     } else if (selected === 'full_audit') {
       setIncludeProvenance(true);
       setIncludeCuration(true);
+      setIncludeDomainKnowledge(true);
       setCurationFilter('ALL');
       setOnlyValidRecords(false);
     }
@@ -81,6 +104,7 @@ export const Exports: React.FC = () => {
         format,
         include_provenance: includeProvenance,
         include_curation: includeCuration,
+        include_domain_knowledge: includeDomainKnowledge,
         curation_filter: curationFilter === 'ALL' ? null : curationFilter,
         only_valid_records: onlyValidRecords,
       }),
@@ -339,6 +363,21 @@ export const Exports: React.FC = () => {
               <label className="flex items-center space-x-2.5 cursor-pointer">
                 <input
                   type="checkbox"
+                  checked={includeDomainKnowledge}
+                  onChange={(e) => {
+                    setIncludeDomainKnowledge(e.target.checked);
+                    setPreset('custom');
+                  }}
+                  className="rounded bg-[#09090b] border-zinc-700 text-emerald-500 focus:ring-0"
+                />
+                <span className="text-zinc-300 font-medium">
+                  Include Domain Knowledge Artifact <span className="font-mono text-[11px] text-zinc-500">(.txt bundled into .zip for RAG / LLM consumption)</span>
+                </span>
+              </label>
+
+              <label className="flex items-center space-x-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
                   checked={includeProvenance}
                   onChange={(e) => {
                     setIncludeProvenance(e.target.checked);
@@ -365,6 +404,19 @@ export const Exports: React.FC = () => {
                   Append Semantic Curation Governance Columns <span className="font-mono text-[11px] text-zinc-500">(_curation_decision, _curation_reason, _curation_confidence, _derived_chambers)</span>
                 </span>
               </label>
+
+              {/* Preview Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPreviewModalOpen(true)}
+                  disabled={!activeDatasetId}
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-indigo-500/30 bg-indigo-950/20 text-indigo-400 hover:bg-indigo-900/30 hover:border-indigo-500/50 text-xs font-mono transition-colors disabled:opacity-50"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>Preview Domain Knowledge Text (.txt)</span>
+                </button>
+              </div>
             </div>
 
             <button
@@ -390,7 +442,7 @@ export const Exports: React.FC = () => {
               <div className="p-4 bg-[#09090b] border border-emerald-800/60 rounded-xl space-y-3 font-mono">
                 <div className="flex items-center space-x-2 text-emerald-400 font-bold">
                   <CheckCircle2 className="w-5 h-5" />
-                  <span>Export Package Ready</span>
+                  <span>{lastExport.format === 'zip' ? 'Export Bundle Ready' : 'Export File Ready'}</span>
                 </div>
 
                 <div className="space-y-2 text-zinc-300 text-[11px] pt-1">
@@ -400,14 +452,40 @@ export const Exports: React.FC = () => {
                   <div>Size: <span className="text-zinc-100">{(lastExport.file_size_bytes / 1024).toFixed(1)} KB</span></div>
                 </div>
 
-                <a
-                  href={lastExport.download_url}
-                  download={lastExport.filename}
-                  className="mt-4 inline-flex items-center justify-center space-x-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm transition-colors font-sans"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Download File</span>
-                </a>
+                {lastExport.domain_knowledge_filename && (
+                  <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-lg space-y-1 text-[11px]">
+                    <div className="text-emerald-400 font-bold flex items-center space-x-1">
+                      <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Domain Knowledge Included</span>
+                    </div>
+                    <div className="text-zinc-300 truncate">Artifact: <span className="text-zinc-100">{lastExport.domain_knowledge_filename}</span></div>
+                    {lastExport.domain_knowledge_hash && (
+                      <div className="text-zinc-400 text-[10px] truncate">SHA-256: <span className="text-zinc-300">{lastExport.domain_knowledge_hash}</span></div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-2 mt-4 font-sans">
+                  <a
+                    href={lastExport.download_url}
+                    download={lastExport.filename}
+                    className="inline-flex items-center justify-center space-x-2 w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg shadow-sm transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{lastExport.format === 'zip' ? 'Download Export Bundle (.ZIP)' : 'Download File'}</span>
+                  </a>
+
+                  {lastExport.domain_knowledge_filename && (
+                    <a
+                      href={`/api/v1/exports/download/${lastExport.domain_knowledge_filename}`}
+                      download={lastExport.domain_knowledge_filename}
+                      className="inline-flex items-center justify-center space-x-2 w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-lg border border-zinc-700 transition-colors"
+                    >
+                      <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Download .TXT Artifact Only</span>
+                    </a>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="py-12 text-center text-zinc-500 font-sans space-y-2">
@@ -447,6 +525,93 @@ export const Exports: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Domain Knowledge Preview Modal */}
+      {previewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#121215] border border-zinc-800 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <BookOpen className="w-5 h-5 text-indigo-400" />
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-100 font-mono">
+                    {domainKnowledgePreview?.filename || 'Domain Knowledge Text Artifact'}
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">
+                    Human-readable, evidence-backed knowledge layer formatted for LLM & RAG retrieval.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Metadata Toolbar */}
+            {domainKnowledgePreview && (
+              <div className="px-4 py-2 bg-[#09090b] border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+                <div className="flex items-center space-x-3 text-zinc-400 text-[11px]">
+                  <span>Records: <strong className="text-zinc-200">{domainKnowledgePreview.record_count}</strong></span>
+                  <span>•</span>
+                  <span>Generator: <strong className="text-zinc-200">v{domainKnowledgePreview.generator_version}</strong></span>
+                  <span>•</span>
+                  <span className="hidden sm:inline">SHA-256: <strong className="text-zinc-200">{domainKnowledgePreview.content_hash.slice(0, 12)}...</strong></span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleCopyText(domainKnowledgePreview.content)}
+                    className="inline-flex items-center space-x-1 px-2.5 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-sans transition-colors"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copied ? 'Copied!' : 'Copy Text'}</span>
+                  </button>
+                  <a
+                    href={domainKnowledgePreview.download_url}
+                    download={domainKnowledgePreview.filename}
+                    className="inline-flex items-center space-x-1 px-2.5 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-sans font-medium transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download .TXT</span>
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Body */}
+            <div className="p-4 flex-1 overflow-auto bg-[#09090b]">
+              {isLoadingPreview ? (
+                <div className="py-20 text-center text-zinc-500 font-mono text-xs">
+                  Synthesizing domain knowledge artifact from dataset and evidence trail...
+                </div>
+              ) : domainKnowledgePreview ? (
+                <pre className="font-mono text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed select-text">
+                  {domainKnowledgePreview.content}
+                </pre>
+              ) : (
+                <div className="py-20 text-center text-zinc-500 text-xs">
+                  Failed to load domain knowledge artifact.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-[#121215] border-t border-zinc-800 flex items-center justify-between text-[11px] text-zinc-500 font-mono">
+              <span>Zero Blind Trust: Strictly grounded in source provenance & verified data.</span>
+              <button
+                onClick={() => setPreviewModalOpen(false)}
+                className="px-3 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-sans text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

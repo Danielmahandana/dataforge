@@ -91,3 +91,20 @@ class DatasetExporter:
 
         df = pd.DataFrame(dict_records if dict_records else [{}])
         return df.to_csv(index=False).encode("utf-8")
+
+    @classmethod
+    def create_export_bundle(
+        cls,
+        dataset_bytes: bytes,
+        dataset_filename: str,
+        knowledge_text: str,
+        knowledge_filename: str,
+    ) -> bytes:
+        """Packages the dataset export and its domain knowledge text artifact into a single ZIP archive."""
+        import zipfile
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr(dataset_filename, dataset_bytes)
+            zf.writestr(knowledge_filename, knowledge_text.encode("utf-8"))
+        return buffer.getvalue()
+

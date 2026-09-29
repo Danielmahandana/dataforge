@@ -19,6 +19,7 @@ import {
   LineageGraph,
   ReviewQueueResponse,
   QualityGates,
+  DomainKnowledgePreview,
 } from '../types';
 
 const api = axios.create({
@@ -195,12 +196,17 @@ export const apiClient = {
       format: string;
       include_provenance?: boolean;
       include_curation?: boolean;
+      include_domain_knowledge?: boolean;
       curation_filter?: string | null;
       only_valid_records?: boolean;
       selected_columns?: string[];
     }
   ): Promise<ExportResponse> => {
     const res = await api.post(`/datasets/${datasetId}/export`, payload);
+    return res.data;
+  },
+  getDomainKnowledgePreview: async (datasetId: string): Promise<DomainKnowledgePreview> => {
+    const res = await api.get(`/datasets/${datasetId}/domain-knowledge`);
     return res.data;
   },
   exportRelationalPackage: async (datasetId: string) => {

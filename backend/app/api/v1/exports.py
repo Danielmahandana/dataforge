@@ -8,9 +8,11 @@ from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models.dataset import Dataset
 from backend.app.models.record import Record
+from backend.app.models.document import Document
 from backend.app.models.activity import ActivityLog
-from backend.app.schemas.export import ExportRequest, ExportResponse
+from backend.app.schemas.export import ExportRequest, ExportResponse, DomainKnowledgeResponse
 from backend.app.pipeline.exporter import DatasetExporter
+from backend.app.knowledge.domain_knowledge_generator import DomainKnowledgeGenerator
 from backend.app.storage.local import storage_manager
 
 router = APIRouter(tags=["Exports"])
@@ -63,8 +65,64 @@ def export_dataset(
     clean_name = re.sub(r"[^\w\-_\.]", "_", dataset.name).strip("_")
     fmt = payload.format.lower().strip()
     ext = "xlsx" if fmt in ["xlsx", "excel"] else fmt
-    export_filename = f"{clean_name}_{dataset.id[:8]}.{ext}"
 
+    # Optional Domain Knowledge Text Artifact & Download Bundle
+    if payload.include_domain_knowledge:
+        document = None
+        if dataset.document_id:
+            document = db.query(Document).filter(Document.id == dataset.document_id).first()
+
+        artifact = DomainKnowledgeGenerator.generate(
+            dataset=dataset,
+            records=records,
+            document=document,
+        )
+
+        # Save standalone domain knowledge text file
+        storage_manager.save_export_file(artifact.filename, artifact.content.encode("utf-8"))
+
+        # Package into ZIP bundle
+        dataset_in_bundle_name = f"{clean_name}.{ext}"
+        bundle_bytes = DatasetExporter.create_export_bundle(
+            dataset_bytes=export_bytes,
+            dataset_filename=dataset_in_bundle_name,
+            knowledge_text=artifact.content,
+            knowledge_filename=artifact.filename,
+        )
+
+        zip_filename = f"{clean_name}_Export_{dataset.id[:8]}.zip"
+        storage_manager.save_export_file(zip_filename, bundle_bytes)
+
+        activity = ActivityLog(
+            project_id=dataset.project_id,
+            entity_type="dataset",
+            entity_id=dataset.id,
+            action="exported",
+            description=f"Exported dataset '{dataset.name}' with Domain Knowledge Bundle ({fmt.upper()} + .TXT) ({len(records)} records).",
+            user="Researcher",
+            details={
+                "format": "zip",
+                "filename": zip_filename,
+                "bytes": len(bundle_bytes),
+                "knowledge_artifact": artifact.filename,
+                "knowledge_hash": artifact.content_hash,
+            },
+        )
+        db.add(activity)
+        db.commit()
+
+        return ExportResponse(
+            download_url=f"/api/v1/exports/download/{zip_filename}",
+            filename=zip_filename,
+            format="zip",
+            record_count=len(records),
+            file_size_bytes=len(bundle_bytes),
+            domain_knowledge_filename=artifact.filename,
+            domain_knowledge_hash=artifact.content_hash,
+        )
+
+    # Standard direct export (no bundle)
+    export_filename = f"{clean_name}_{dataset.id[:8]}.{ext}"
     storage_manager.save_export_file(export_filename, export_bytes)
 
     activity = ActivityLog(
@@ -87,6 +145,58 @@ def export_dataset(
         file_size_bytes=len(export_bytes),
     )
 
+
+@router.get("/datasets/{dataset_id}/domain-knowledge")
+def get_dataset_domain_knowledge(
+    dataset_id: str,
+    preview: bool = Query(False),
+    download: bool = Query(False),
+    project_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Generates and returns the domain knowledge text artifact for preview or download."""
+    dataset_query = db.query(Dataset).filter(Dataset.id == dataset_id)
+    if project_id:
+        dataset_query = dataset_query.filter(Dataset.project_id == project_id)
+    dataset = dataset_query.first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found or does not belong to specified project")
+
+    records = db.query(Record).filter(Record.dataset_id == dataset_id).order_by(Record.row_index.asc()).all()
+    document = None
+    if dataset.document_id:
+        document = db.query(Document).filter(Document.id == dataset.document_id).first()
+
+    artifact = DomainKnowledgeGenerator.generate(
+        dataset=dataset,
+        records=records,
+        document=document,
+    )
+
+    # Save artifact to export directory
+    storage_manager.save_export_file(artifact.filename, artifact.content.encode("utf-8"))
+
+    if download:
+        target_path = storage_manager.exports_dir / artifact.filename
+        return FileResponse(
+            path=target_path,
+            media_type="text/plain; charset=utf-8",
+            filename=artifact.filename,
+        )
+
+    return DomainKnowledgeResponse(
+        dataset_id=dataset.id,
+        dataset_name=dataset.name,
+        filename=artifact.filename,
+        content=artifact.content,
+        content_hash=artifact.content_hash,
+        record_count=artifact.record_count,
+        generator_version=artifact.generator_version,
+        generated_at=artifact.generated_at,
+        download_url=f"/api/v1/exports/download/{artifact.filename}",
+    )
+
+
 @router.get("/exports/download/{filename}")
 def download_export_file(filename: str):
     target_path = storage_manager.exports_dir / filename
@@ -97,6 +207,8 @@ def download_export_file(filename: str):
         "csv": "text/csv",
         "json": "application/json",
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "zip": "application/zip",
+        "txt": "text/plain; charset=utf-8",
     }
     ext = target_path.suffix.lstrip(".").lower()
     media_type = media_types.get(ext, "application/octet-stream")
@@ -106,6 +218,7 @@ def download_export_file(filename: str):
         media_type=media_type,
         filename=filename,
     )
+
 
 
 @router.post("/datasets/{dataset_id}/relational-export")
